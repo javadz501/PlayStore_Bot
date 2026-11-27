@@ -130,3 +130,16 @@ Two long-running tasks loop alongside polling (`Services/sweeper.py`):
 ## 8. Shutdown
 
 `Main.main()` registers `_on_signal` for SIGINT/SIGTERM. The handler kills the chromedriver subprocess (so any in-flight Selenium HTTP call fails fast instead of looping) and calls `dp.stop_polling()`. The `finally` block then cancels background tasks, closes the aiogram session, and closes the Mongo client.
+
+
+## 9. Multi-architecture mode
+
+PLAY_ARCH_MODE=all (default) selects arm64 and armv7 from Services/architectures.py. PlayDownloader.download_arch() creates an isolated output directory per architecture and invokes the architecture-aware backend sequentially. Sequential execution avoids races around shared alltech authentication state.
+
+Each successful download is converted and signed independently. The pipeline creates one ZIP containing the APK variants and ARCHITECTURE_REPORT.json. The report separates successful ABI variants, per-app download failures, unsupported x86/x86_64 targets, and Universal status (not_generated).
+
+The pipeline does not merge ARM64 and ARMv7 outputs into a purported Universal APK. A true Universal APK requires compatible resource splits and native libraries for every target ABI in one coherent package response.
+
+The cache accepts only .zip output in all mode, so an older single-architecture APK cannot be returned as a multi-architecture result. NixFile cache entries also carry nixfile_kind=multi-arch-zip to prevent reuse of an older single-APK link.
+
+The combined delivery action sends the ZIP to Telegram and uploads the same ZIP to NixFile. If one channel fails, the successful channel is retained and the job remains retryable.

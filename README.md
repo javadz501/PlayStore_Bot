@@ -223,3 +223,12 @@ storage/    downloads and runtime files
 ```
 # Important!
 ## this project uses Telegram-bot-api and you should set it up on your server to run this bot
+
+
+## Multi-architecture downloads
+
+Set PLAY_ARCH_MODE=all to request every architecture supported by the configured downloader. With the pinned gplaydl 2.x dependency and current alltech-gplay integration, verified targets are ARM64 (arm64-v8a) and ARMv7 (armeabi-v7a). Each target is downloaded and converted separately, then bundled with ARCHITECTURE_REPORT.json.
+
+The current backend set does not provide x86 or x86_64 device profiles. A true cross-ABI Universal APK is not generated: merging ARM-specific outputs does not create a valid universal binary. Unsupported and per-app unavailable targets are reported in the ZIP manifest.
+
+The delivery prompt includes a combined option that sends the ZIP to Telegram and uploads the same ZIP to NixFile. Existing single-channel delivery options remain available.

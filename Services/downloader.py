@@ -40,6 +40,26 @@ class PlayDownloader:
 
         return self._select_download_result(output_dir)
 
+    async def download_arch(self, url: str, package_name: str, job_id: int, arch: str) -> Path:
+        output_dir = self._settings.download_dir / str(job_id) / arch
+        output_dir.mkdir(parents=True, exist_ok=True)
+        backend = self._resolve_backend()
+        try:
+            if backend == "alltech-gplay":
+                await self._alltech_run_with_auth_retry(package_name, output_dir, arch)
+            elif backend == "gplaydl":
+                await run_process(["gplaydl", "download", package_name, "-o", str(output_dir), "-a", arch])
+            elif backend == "custom":
+                template = self._settings.play_downloader_cmd
+                if not template:
+                    raise DownloadError("PLAY_DOWNLOADER_CMD تنظیم نشده است.")
+                await run_command(self._render(template, url=url, package=package_name, output_dir=str(output_dir), arch=arch))
+            else:
+                raise DownloadError(f"Backend '{backend}' cannot guarantee architecture-specific output.")
+        except CommandError as exc:
+            raise DownloadError(f"{arch}: {exc}") from exc
+        return self._select_download_result(output_dir)
+
     async def _run_backend(self, url: str, package_name: str, output_dir: Path) -> None:
         backend = self._resolve_backend()
 
@@ -208,11 +228,10 @@ class PlayDownloader:
                 if attempt >= MAX_ALLTECH_AUTH_RETRIES:
                     break
                 logger.warning(
-                    "alltech-gplay 401 for %s (attempt %d); rotating auth token",
-                    package_name,
-                    attempt + 1,
+                    "alltech-gplay 401 for %s arch=%s (attempt %d); rotating auth token",
+                    package_name, arch, attempt + 1,
                 )
-                await self._alltech_force_reauth()
+                await self._alltech_force_reauth(arch)
         if last_error is None:
             raise CommandError("alltech-gplay failed without raising")
         raise last_error
@@ -233,8 +252,10 @@ class PlayDownloader:
         )
         return any(m in lowered for m in markers)
 
-    async def _alltech_force_reauth(self) -> None:
+    async def _alltech_force_reauth(self, arch: str = "arm64") -> None:
         auth_file = self._settings.alltech_auth_file.expanduser()
+        if arch == "armv7":
+            auth_file = auth_file.with_name(f"{auth_file.stem}-armv7{auth_file.suffix}")
         with suppress(Exception):
             if auth_file.exists():
                 auth_file.unlink()

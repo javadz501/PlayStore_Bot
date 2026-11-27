@@ -171,7 +171,9 @@ class DeliveryCallback(CallbackQueryHandler):
             await _safe_edit_text(self.message,JOB_NOT_FOUND_TEXT, reply_markup=main_keyboard())
             return
 
-        if mode == "tg":
+        if mode == "both":
+            await self._deliver_both(job_id, apk_path, package_label, package_name)
+        elif mode == "tg":
             await self._deliver_telegram(job_id, apk_path, package_label)
         elif mode == "nx":
             settings = self.data["settings"]
@@ -223,6 +225,66 @@ class DeliveryCallback(CallbackQueryHandler):
             )
         else:
             await _safe_edit_text(self.message,JOB_NOT_FOUND_TEXT, reply_markup=main_keyboard())
+
+    async def _deliver_both(self, job_id: int, archive_path: Path, package_label: str, package_name: str) -> None:
+        db = self.data["db"]
+        settings = self.data["settings"]
+        status_message = self.message
+        if status_message is None:
+            return
+        telegram_ok = False
+        nixfile_url = None
+        errors = []
+        try:
+            await _safe_edit_text(status_message, "Sending the multi-architecture package to Telegram...")
+            await self._send_document_with_retry(archive_path, package_label, int(getattr(settings, "telegram_upload_retries", 4) or 4))
+            telegram_ok = True
+        except Exception as exc:
+            errors.append(f"Telegram: {exc}")
+            logger.exception("Combined Telegram delivery failed")
+        uploader = self.data.get("nixfile_uploader")
+        nixfile_allowed = uploader is not None and uploader.enabled
+        if not nixfile_allowed:
+            errors.append("NixFile uploader is disabled")
+        limit = int(getattr(settings, "limit_daily_ir", 0) or 0)
+        if nixfile_allowed and limit > 0 and await db.count_user_nixfile_today(self.from_user.id) >= limit:
+            errors.append(f"NixFile daily quota reached ({limit})")
+            nixfile_allowed = False
+        max_mb = int(getattr(settings, "nixfile_max_file_mb", 0) or 0)
+        size_mb = archive_path.stat().st_size / (1024 * 1024)
+        if nixfile_allowed and max_mb > 0 and size_mb > max_mb:
+            errors.append(f"NixFile file size {size_mb:.1f} MB exceeds {max_mb} MB")
+            nixfile_allowed = False
+        if nixfile_allowed:
+            try:
+                cache = await db.get_package_cache(package_name)
+                cached_url = cache.get("nixfile_url") if cache and cache.get("nixfile_kind") == "multi-arch-zip" else None
+                if cached_url and await is_nixfile_url_alive(cached_url):
+                    nixfile_url = cached_url
+                else:
+                    if cached_url:
+                        await db.clear_package_nixfile(package_name)
+                    await _safe_edit_text(status_message, "Telegram delivery processed. Uploading the package to NixFile...")
+                    nixfile_url = await uploader.upload(archive_path)
+                    await db.set_package_nixfile(package_name, nixfile_url, kind="multi-arch-zip")
+            except Exception as exc:
+                errors.append(f"NixFile: {exc}")
+                logger.exception("Combined NixFile delivery failed")
+        if telegram_ok and nixfile_url:
+            await db.set_job_delivery(job_id, "both")
+            await db.update_job(job_id, "done")
+            _maybe_delete_after_upload(settings, archive_path)
+            await _safe_edit_text(status_message, "Both delivery methods completed.", reply_markup=link_keyboard(nixfile_url))
+            return
+        await db.update_job(job_id, "ready", error="; ".join(errors) or "Partial delivery")
+        if nixfile_url:
+            await db.set_job_delivery(job_id, "nixfile")
+            await _safe_edit_text(status_message, f"NixFile link is ready. Telegram delivery: {'completed' if telegram_ok else 'failed'}.", reply_markup=link_keyboard(nixfile_url))
+        elif telegram_ok:
+            await db.set_job_delivery(job_id, "telegram")
+            await _safe_edit_text(status_message, "Telegram delivery completed, but the NixFile link could not be created. Retry from the delivery buttons.", reply_markup=delivery_keyboard(job_id))
+        else:
+            await _safe_edit_text(status_message, FAILED_TEXT.format(error=safe("; ".join(errors))), reply_markup=delivery_keyboard(job_id))
 
     async def _deliver_telegram(
         self, job_id: int, apk_path: Path, package_label: str

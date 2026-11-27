@@ -119,13 +119,18 @@ class Database:
             upsert=True,
         )
 
-    async def set_package_nixfile(self, package_name: str, url: str) -> None:
+    async def set_package_nixfile(self, package_name: str, url: str, kind: str = "apk") -> None:
         db = self._require_db()
         now = self._now()
         await db.package_cache.update_one(
             {"_id": package_name},
             {
-                "$set": {"nixfile_url": url, "nixfile_uploaded_at": now, "nixfile_checked_at": now},
+                "$set": {
+                    "nixfile_url": url,
+                    "nixfile_kind": kind,
+                    "nixfile_uploaded_at": now,
+                    "nixfile_checked_at": now,
+                },
                 "$setOnInsert": {"_id": package_name, "created_at": now},
             },
             upsert=True,
@@ -156,7 +161,7 @@ class Database:
         return await db.jobs.count_documents(
             {
                 "user_id": user_id,
-                "delivery_mode": "nixfile",
+                "delivery_mode": {"$in": ["nixfile", "both"]},
                 "status": "done",
                 "updated_at": {"$gte": start},
             }

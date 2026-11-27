@@ -37,6 +37,9 @@ def delivery_keyboard(job_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
+                InlineKeyboardButton(text="هر دو: تلگرام + لینک دانلود", callback_data=f"deliver:both:{job_id}"),
+            ],
+            [
                 InlineKeyboardButton(text="تلگرام", callback_data=f"deliver:tg:{job_id}"),
                 InlineKeyboardButton(text="لینک داخلی", callback_data=f"deliver:nx:{job_id}"),
             ],
