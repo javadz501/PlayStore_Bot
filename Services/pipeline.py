@@ -98,7 +98,8 @@ async def run_download_pipeline(
             cached_apk = candidate
 
     if cached_apk is not None:
-        cached_apk = await _rename_apk_for_app(cached_apk, package_name)
+        if mode == "single":
+            cached_apk = await _rename_apk_for_app(cached_apk, package_name)
         await db.set_package_apk(package_name, str(cached_apk))
         status_message = await event_message.answer(
             f"{DOWNLOAD_TITLE}\n\n{package_label}\n\n♻️ از کش استفاده شد"
@@ -125,6 +126,9 @@ async def run_download_pipeline(
         )
         download_progress.start()
         if mode == "all":
+            if download_progress:
+                await download_progress.stop()
+                download_progress = None
             architectures = architecture_plan(mode, settings.play_arch)
             successful_apks = {}
             failed_architectures = {}
@@ -133,7 +137,19 @@ async def run_download_pipeline(
             for arch in architectures:
                 try:
                     await status_message.edit_text(f"{DOWNLOAD_TITLE}\n\n{package_label}\n\nDownloading {arch} ({ARCHITECTURE_ABIS[arch]})")
-                    source_path = await downloader.download_arch(url=url, package_name=package_name, job_id=job_id, arch=arch)
+                    arch_progress = DiskSizeProgress(
+                        status_message,
+                        DOWNLOAD_TITLE,
+                        package_label,
+                        settings.download_dir / str(job_id) / arch,
+                    )
+                    arch_progress.start()
+                    try:
+                        source_path = await downloader.download_arch(
+                            url=url, package_name=package_name, job_id=job_id, arch=arch
+                        )
+                    finally:
+                        await arch_progress.stop()
                     await status_message.edit_text(f"{CONVERTING_TEXT}\n\n{arch}")
                     apk_path = await converter.to_apk(source_path)
                     variant_path = apk_path.with_name(f"{app_stem}-{arch}.apk")
@@ -161,8 +177,9 @@ async def run_download_pipeline(
             apk_path = await _rename_apk_for_app(apk_path, package_name)
             await db.update_job(job_id, "ready", apk_path=str(apk_path))
             await db.set_package_apk(package_name, str(apk_path))
-        await download_progress.stop()
-        download_progress = None
+        if download_progress:
+            await download_progress.stop()
+            download_progress = None
 
         await status_message.edit_text(
             DELIVERY_PROMPT_TEXT, reply_markup=delivery_keyboard(job_id)
