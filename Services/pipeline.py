@@ -136,7 +136,7 @@ async def run_download_pipeline(
             app_stem = sanitize_filename_stem(app_title or package_name, fallback=package_name)
             for arch in architectures:
                 try:
-                    await status_message.edit_text(f"{DOWNLOAD_TITLE}\n\n{package_label}\n\nDownloading {arch} ({ARCHITECTURE_ABIS[arch]})")
+                    await status_message.edit_text(f"{DOWNLOAD_TITLE}\n\n{package_label}\n\nدر حال دریافت نسخه {arch} ({ARCHITECTURE_ABIS[arch]})")
                     arch_progress = DiskSizeProgress(
                         status_message,
                         DOWNLOAD_TITLE,
