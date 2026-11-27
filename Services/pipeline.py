@@ -47,7 +47,7 @@ def _create_multi_arch_bundle(archive_path, package_name, successful_apks, faile
         },
     }
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_STORED) as bundle:
         for apk_path in successful_apks.values():
             bundle.write(apk_path, arcname=f"apks/{apk_path.name}")
         bundle.writestr("ARCHITECTURE_REPORT.json", json.dumps(manifest, indent=2, sort_keys=True))
