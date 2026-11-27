@@ -27,8 +27,8 @@ Signal handlers (`SIGINT`, `SIGTERM`) force-kill the Selenium chromedriver subpr
 
 ### Services/
 - **commands.py** — thin `asyncio.create_subprocess_*` wrappers, `CommandError`, timeout enforcement (default 900s).
-- **bootstrap.py** — `ensure_tools(settings)` runs at boot. Clones the `alltech-gplay` repo, builds its venv, ensures auth token, downloads latest `APKEditor.jar` and `uber-apk-signer.jar` from GitHub releases.
-- **downloader.py** — `PlayDownloader` chooses a backend (alltech-gplay default), runs it, and `_select_download_result()` picks the right artifact from the output directory (single `.apk`, single `.apks`, or a directory of splits).
+- **bootstrap.py** — `ensure_tools(settings)` runs at boot. In multi-architecture mode it installs/upgrades gplaydl 4.x; in single mode it can bootstrap alltech-gplay. It also downloads the latest `APKEditor.jar` and `uber-apk-signer.jar` from GitHub releases.
+- **downloader.py** — `PlayDownloader` selects gplaydl 4.x for `PLAY_ARCH_MODE=all` and passes the optional `GPLAYDL_API_KEY` only to the downloader subprocess. In single mode it retains the legacy backend selection. `_select_download_result()` picks a single APK/APKS or a directory of splits.
 - **converter.py** — `ApksConverter.to_apk()` materializes a single installable APK. Merges split directories using APKEditor with `-extractNativeLibs true -clean-meta -f` (this is what makes the merged APK actually run, not just install — see [04-pipeline.md](04-pipeline.md)).
 - **jobs.py** — `JobRunner`. Global semaphore (`MAX_PARALLEL_JOBS`) + per-user lock to prevent the same user spamming concurrent jobs.
 - **nixfile.py** — Selenium-driven uploader for `panel.nixfile.com`. Persists session to disk so subsequent uploads skip login. Surfaces live progress via `progress_snapshot()` consumed by `SnapshotProgress`.

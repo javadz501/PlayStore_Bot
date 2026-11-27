@@ -42,9 +42,25 @@ Inside the docker-compose network the URI is overridden to `mongodb://mongo:2701
 
 | Var | Default | Notes |
 |-----|---------|-------|
-| `PLAY_DOWNLOADER_BACKEND` | `auto` | `auto` \| `alltech-gplay` \| `gplaydl` \| `apkeep` \| `custom`. |
-| `PLAY_ARCH` | `arm64` | Passed to the backend as `-a`. |
-| `MERGE_SPLITS` | `true` | Kept for backward compat. The bot now always re-merges with APKEditor; alltech-gplay's `-m` flag is no longer passed. |
+| `PLAY_DOWNLOADER_BACKEND` | `auto` | In `PLAY_ARCH_MODE=all`, auto selects `gplaydl 4.x`; in single mode it retains the alltech-gplay → gplaydl → apkeep preference. Explicit: `alltech-gplay` \| `gplaydl` \| `apkeep` \| `custom`. |
+| `PLAY_ARCH` | `arm64` | Used by single mode. |
+| `PLAY_ARCH_MODE` | `all` | `all` downloads ARM64, ARMv7, x86_64 and x86 separately; `single` uses `PLAY_ARCH`. |
+| `GPLAYDL_API_KEY` | (unset) | Optional gplaydl 4.x dispenser key for containers/CI. Alternatively pair the runtime once with `gplaydl link`. |
+| `MERGE_SPLITS` | `true` | Kept for backward compatibility; PlayDL merges split APKs with APKEditor. |
+
+### gplaydl 4.x
+
+Multi-architecture mode requires gplaydl 4.x. Supported ABI flags are `arm64`, `armv7`, `x86_64` and `x86`. PlayDL invokes one architecture per isolated output directory so each APK set is merged independently.
+
+For a Docker runtime, pair once with:
+
+```bash
+docker compose -f Docker/docker-compose.yml exec bot gplaydl link
+```
+
+The pairing configuration is stored under `/root/.config/gplaydl/`; the existing `/root` volume persists it. For non-interactive containers, set `GPLAYDL_API_KEY` in the runtime environment. Do not commit it or print it in logs.
+
+Use a separate Google account. The project uses unofficial Google Play access and warns that Google may rate-limit or restrict accounts.
 
 ### alltech-gplay
 

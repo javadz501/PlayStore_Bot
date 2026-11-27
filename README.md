@@ -24,12 +24,12 @@ Persian guide: [README-Fa.md](README-Fa.md)
 - Java 17+
 - Telegram Bot API local server
 - One Google Play downloader backend:
-  - Recommended: [`alltechdev/gplay-apk-downloader`](https://github.com/alltechdev/gplay-apk-downloader)
-  - Alternative: [`gplaydl`](https://pypi.org/project/gplaydl/)
+  - Recommended for multi-architecture: [`gplaydl 4.x`](https://pypi.org/project/gplaydl/)
+  - Alternative for single-architecture mode: [`alltechdev/gplay-apk-downloader`](https://github.com/alltechdev/gplay-apk-downloader)
   - Alternative: [`apkeep`](https://github.com/EFForg/apkeep)
 - [`APKEditor.jar`](https://github.com/REAndroid/APKEditor/releases) for merging split APKs
 
-PlayDL can install missing helper tools on startup when `AUTO_INSTALL_TOOLS=true`. It can clone `alltechdev/gplay-apk-downloader`, install `gplaydl` with pip, install `apkeep` with Cargo if Rust is present, and download the latest APKEditor jar. It does not install OS services/packages such as Java, MongoDB, Telegram Bot API server, git, or Rust.
+With `AUTO_INSTALL_TOOLS=true`, multi-architecture mode installs or upgrades `gplaydl 4.x`; single-architecture mode retains the alltech-gplay backend option. PlayDL can also install `apkeep` when explicitly selected and download APKEditor/signing jars. It does not install OS services/packages such as Java, MongoDB, Telegram Bot API server, git, or Rust.
 
 ## Install
 
@@ -112,9 +112,9 @@ MAX_PARALLEL_JOBS=2
 
 ## Downloader Setup
 
-### Recommended: alltech gplay
+### alltech gplay (single-architecture mode)
 
-This backend is closest to what the bot needs. It downloads Google Play files and can merge/sign split APKs.
+Use this backend only with `PLAY_ARCH_MODE=single`. It does not provide the four ABI profiles required by multi-architecture mode.
 
 ```env
 PLAY_DOWNLOADER_BACKEND=alltech-gplay
@@ -127,17 +127,19 @@ MERGE_SPLITS=true
 
 With `AUTO_INSTALL_TOOLS=true`, the bot clones this repo into `tools/gplay-apk-downloader` if it is missing. With `ALLTECH_AUTO_AUTH=true`, it also runs `gplay auth` once if `~/.gplay-auth.json` is missing.
 
-### gplaydl
+### Recommended: gplaydl 4.x (four ABI profiles)
 
-`gplaydl` is installed by `requirements.txt`. It can download base and split APK files. PlayDL then merges them with APKEditor.
+`gplaydl 4.x` supports ARM64, ARMv7, x86_64 and x86. In `PLAY_ARCH_MODE=all`, PlayDL invokes it once per architecture, converts each architecture's base/split APK set independently, and places the signed variants in one ZIP.
 
 ```env
 PLAY_DOWNLOADER_BACKEND=gplaydl
-PLAY_ARCH=arm64
-APKEDITOR_JAR=tools/APKEditor.jar
+PLAY_ARCH_MODE=all
+GPLAYDL_API_KEY=
 ```
 
-With auto-install enabled, the bot runs `python -m pip install gplaydl>=2.1,<3` if the `gplaydl` command is missing.
+The API key is optional when the runtime has been paired with `gplaydl link`. For Docker, run `docker compose -f Docker/docker-compose.yml exec bot gplaydl link` once; the existing `/root` volume persists its configuration. Alternatively, set `GPLAYDL_API_KEY` in the runtime environment or `.env`. Do not commit the key.
+
+The first-time pairing uses the gplaydl Authenticator app and a separate Google account. Google may restrict accounts used with unofficial clients; do not use a primary account. See the [official gplaydl setup and architecture notes](https://pypi.org/project/gplaydl/).
 
 ### apkeep
 
@@ -227,8 +229,8 @@ storage/    downloads and runtime files
 
 ## Multi-architecture downloads
 
-Set PLAY_ARCH_MODE=all to request every architecture supported by the configured downloader. With the pinned gplaydl 2.x dependency and current alltech-gplay integration, verified targets are ARM64 (arm64-v8a) and ARMv7 (armeabi-v7a). Each target is downloaded and converted separately, then bundled with ARCHITECTURE_REPORT.json.
+Set `PLAY_ARCH_MODE=all` to request ARM64 (arm64-v8a), ARMv7 (armeabi-v7a), x86_64 and x86 using `gplaydl 4.x`. Each target is downloaded and converted independently, then bundled with `ARCHITECTURE_REPORT.json`. Per-app unavailable variants are recorded as download failures in the manifest.
 
-The current backend set does not provide x86 or x86_64 device profiles. A true cross-ABI Universal APK is not generated: merging ARM-specific outputs does not create a valid universal binary. Unsupported and per-app unavailable targets are reported in the ZIP manifest.
+Google Play does not provide a Universal APK for App Bundle applications. PlayDL therefore delivers separate signed ABI APKs inside the ZIP; it does not claim that the bundle is one Universal APK. The merged APKs are re-signed and cannot update an installation signed by Google Play.
 
 The delivery prompt includes a combined option that sends the ZIP to Telegram and uploads the same ZIP to NixFile. Existing single-channel delivery options remain available.

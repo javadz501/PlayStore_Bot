@@ -22,9 +22,10 @@ End-to-end trace of one request, with the exact file/line responsibilities.
 
 - Creates `<DOWNLOAD_DIR>/<job_id>/`.
 - Picks a backend via `_resolve_backend()`:
-  - `auto` order: alltech-gplay → gplaydl → apkeep → custom.
-- Runs the backend as a subprocess. For alltech-gplay this is `[<gplay-path> download <pkg> -a <arch> -o <out>]` (no `-m` — we always merge ourselves; see step 4).
-- On HTTP 401 from Google, deletes the auth file and re-runs `gplay auth` (up to two retries).
+  - `PLAY_ARCH_MODE=all`: gplaydl 4.x is mandatory; auto selects it and explicit non-gplaydl backends are rejected.
+  - `PLAY_ARCH_MODE=single`: auto retains the legacy alltech-gplay → gplaydl → apkeep → custom preference.
+- Runs gplaydl as `gplaydl download <pkg> -o <out> -a <arch>`. The optional `GPLAYDL_API_KEY` is passed to the subprocess environment without being logged.
+- Pairing is performed once with `gplaydl link`; the runtime config is persisted under `~/.config/gplaydl/`.
 
 `PlayDownloader._select_download_result()` inspects the output dir and returns one of:
 - the single `.apk` if there was only one;
@@ -134,11 +135,11 @@ Two long-running tasks loop alongside polling (`Services/sweeper.py`):
 
 ## 9. Multi-architecture mode
 
-PLAY_ARCH_MODE=all (default) selects arm64 and armv7 from Services/architectures.py. PlayDownloader.download_arch() creates an isolated output directory per architecture and invokes the architecture-aware backend sequentially. Sequential execution avoids races around shared alltech authentication state.
+PLAY_ARCH_MODE=all (default) selects arm64, armv7, x86_64 and x86 from Services/architectures.py. PlayDownloader.download_arch() creates an isolated output directory per architecture and invokes gplaydl 4.x once for each target. Sequential execution prevents output-directory and converter collisions.
 
-Each successful download is converted and signed independently. The pipeline creates one ZIP containing the APK variants and ARCHITECTURE_REPORT.json. The report separates successful ABI variants, per-app download failures, unsupported x86/x86_64 targets, and Universal status (not_generated).
+Each successful download is converted and signed independently. The converter stages the base and split APK payloads while excluding Play Asset Delivery APKs from the merge input. The pipeline creates one ZIP containing the APK variants and ARCHITECTURE_REPORT.json. The report separates successful ABI variants, per-app download failures, and Universal status (not_generated).
 
-The pipeline does not merge ARM64 and ARMv7 outputs into a purported Universal APK. A true Universal APK requires compatible resource splits and native libraries for every target ABI in one coherent package response.
+Google Play does not provide a Universal APK for App Bundle applications. The pipeline therefore does not merge different ABI outputs into a purported Universal APK. Each merged APK is re-signed; it cannot update an installation signed by Google Play.
 
 The cache accepts only .zip output in all mode, so an older single-architecture APK cannot be returned as a multi-architecture result. NixFile cache entries also carry nixfile_kind=multi-arch-zip to prevent reuse of an older single-APK link.
 

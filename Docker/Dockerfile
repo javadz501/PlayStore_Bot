@@ -51,7 +51,7 @@ COPY pyproject.toml ./
 RUN pip install --upgrade pip setuptools wheel \
     && pip install \
         "aiogram>=3.28,<3.29" \
-        "gplaydl>=2.1,<3" \
+        "gplaydl>=4.2.1,<5" \
         "pymongo>=4.15,<5" \
         "pydantic>=2.11,<3" \
         "pydantic-settings>=2.9,<3" \

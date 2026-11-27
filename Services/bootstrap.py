@@ -2,9 +2,11 @@ import json
 import logging
 import os
 import platform
+import re
 import shutil
 import stat
 import sys
+from importlib.metadata import PackageNotFoundError, version
 import urllib.request
 from pathlib import Path
 
@@ -26,7 +28,14 @@ async def ensure_tools(settings: Settings) -> None:
 
     backend = settings.play_downloader_backend.strip().lower()
     logger.info("Checking downloader tools for backend=%s", backend)
-    if backend in {"auto", "alltech-gplay"}:
+    arch_mode = (settings.play_arch_mode or "all").strip().lower()
+    if backend == "auto" and arch_mode == "all":
+        await _ensure_gplaydl()
+    elif backend in {"auto", "alltech-gplay"}:
+        if arch_mode == "all":
+            raise DownloadError(
+                "PLAY_ARCH_MODE=all requires PLAY_DOWNLOADER_BACKEND=gplaydl (version 4.x)."
+            )
         await _ensure_alltech(settings)
         await _ensure_apkeep(settings)
     elif backend == "gplaydl":
@@ -115,12 +124,24 @@ async def _ensure_alltech_venv(repo_dir: Path) -> None:
         await _install_python_packages(["-r", str(requirements)], python_path=venv_python)
 
 
+def _gplaydl_version_supported() -> bool:
+    try:
+        installed = version("gplaydl")
+    except PackageNotFoundError:
+        return False
+    match = re.match(r"^(\d+)\.(\d+)\.(\d+)", installed)
+    if not match:
+        return False
+    parsed = tuple(int(part) for part in match.groups())
+    return (4, 2, 1) <= parsed < (5, 0, 0)
+
+
 async def _ensure_gplaydl() -> None:
-    if shutil.which("gplaydl"):
-        logger.info("gplaydl found")
+    if shutil.which("gplaydl") and _gplaydl_version_supported():
+        logger.info("gplaydl 4.x found")
         return
-    logger.info("Installing gplaydl")
-    await _install_python_packages(["gplaydl>=2.1,<3"])
+    logger.info("Installing or upgrading gplaydl to the supported 4.x series")
+    await _install_python_packages(["--upgrade", "gplaydl>=4.2.1,<5"])
 
 
 async def _ensure_apkeep(settings) -> None:

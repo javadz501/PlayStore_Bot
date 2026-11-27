@@ -25,11 +25,12 @@ Tip: `export COMPOSE_FILE=Docker/docker-compose.yml` if you don't want the `-f` 
 What happens:
 1. Compose starts MongoDB and waits for its healthcheck.
 2. The `bot` container builds, then runs `python -u Main.py`.
-3. On first boot, `ensure_tools()` clones `alltech-gplay`, builds its venv, and downloads the latest `APKEditor.jar` and `uber-apk-signer.jar` into the `tools/` volume.
-4. First Play Store download triggers `gplay auth`. If you have automated-auth issues, exec into the container and run it manually:
+3. In the default multi-architecture mode, `ensure_tools()` installs or upgrades `gplaydl 4.x`, then downloads `APKEditor.jar` and `uber-apk-signer.jar` into the `tools/` volume.
+4. Pair gplaydl once inside the running container. Install the gplaydl Authenticator app on an Android device, sign in with a separate Google account, select Link gplaydl, then run:
    ```bash
-   docker compose exec bot python /app/tools/gplay-apk-downloader/gplay auth
+   docker compose -f Docker/docker-compose.yml exec bot gplaydl link
    ```
+   The pairing configuration is stored under `/root/.config/gplaydl/` and persists through the existing `alltech_auth` volume. Alternatively, inject `GPLAYDL_API_KEY` through the runtime environment.
 
 ### Volumes
 
@@ -39,7 +40,7 @@ What happens:
 | `downloads` | `/app/storage/downloads` | Per-job working dirs. Wiped automatically when over quota. |
 | `tools` | `/app/tools` | APKEditor + uber-apk-signer jars + cloned `alltech-gplay`. Survives image rebuilds. |
 | `nixfile_session` | `/app/storage` | Persists `nixfile-session.json` and the rubpy `.rp` session so re-deploys don't force fresh logins. |
-| `alltech_auth` | `/root` | Holds `.gplay-auth.json`. |
+| `alltech_auth` | `/root` | Persists gplaydl config/token cache and legacy alltech auth files. |
 
 ### shm_size
 
@@ -47,6 +48,7 @@ Chrome needs `--disable-dev-shm-usage` *and* a real `/dev/shm`. We allocate `shm
 
 ### Architecture caveats
 
+- Multi-architecture downloads target four Google Play device profiles: ARM64, ARMv7, x86_64 and x86. An individual app may not publish all four variants; the manifest records per-ABI failures.
 - The Chrome `.deb` package only ships `amd64`. On ARM hosts (Apple Silicon, Raspberry Pi 4/5) you'll need to swap to `chromium` from Debian repos or use a different base image. The rest of the stack is arch-agnostic.
 
 ## Bare metal / venv

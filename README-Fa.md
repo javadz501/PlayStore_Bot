@@ -24,12 +24,12 @@ English guide: [README.md](README.md)
 - Java 17+
 - Telegram Bot API local server
 - یکی از دانلودرهای Google Play:
-  - پیشنهاد اصلی: [`alltechdev/gplay-apk-downloader`](https://github.com/alltechdev/gplay-apk-downloader)
-  - جایگزین: [`gplaydl`](https://pypi.org/project/gplaydl/)
+  - پیشنهاد اصلی برای چندمعماری: [`gplaydl 4.x`](https://pypi.org/project/gplaydl/)
+  - جایگزین برای حالت تک‌معماری: [`alltechdev/gplay-apk-downloader`](https://github.com/alltechdev/gplay-apk-downloader)
   - جایگزین: [`apkeep`](https://github.com/EFForg/apkeep)
 - [`APKEditor.jar`](https://github.com/REAndroid/APKEditor/releases) برای merge کردن split APKها
 
-اگر `AUTO_INSTALL_TOOLS=true` باشد، PlayDL ابزارهای کمکی را موقع شروع نصب می‌کند: repo مربوط به `alltechdev/gplay-apk-downloader` را clone می‌کند، `gplaydl` را با pip نصب می‌کند، اگر Rust/Cargo نصب باشد `apkeep` را نصب می‌کند و آخرین APKEditor jar را دانلود می‌کند. سرویس‌ها و پکیج‌های سیستمی مثل Java، MongoDB، Telegram Bot API server، git و Rust را خودش نصب نمی‌کند.
+اگر `AUTO_INSTALL_TOOLS=true` باشد، در حالت چندمعماری، `gplaydl 4.x` نصب یا به‌روزرسانی می‌شود. حالت تک‌معماری همچنان امکان استفاده از alltech-gplay را دارد. ابزارهای APKEditor و signer نیز در صورت نیاز دریافت می‌شوند. سرویس‌ها و پکیج‌های سیستمی مثل Java، MongoDB، Telegram Bot API server، git و Rust خودکار نصب نمی‌شوند.
 
 ## نصب
 
@@ -112,9 +112,9 @@ MAX_PARALLEL_JOBS=2
 
 ## تنظیم دانلودر
 
-### پیشنهاد اصلی: alltech gplay
+### alltech gplay (فقط حالت تک‌معماری)
 
-این گزینه برای کار ما مناسب‌تر است، چون دانلود Google Play، merge، patch و signing را خودش انجام می‌دهد.
+این Backend را فقط با `PLAY_ARCH_MODE=single` استفاده کن. پروفایل‌های لازم برای چهار معماری را ارائه نمی‌کند.
 
 ```env
 PLAY_DOWNLOADER_BACKEND=alltech-gplay
@@ -127,17 +127,19 @@ MERGE_SPLITS=true
 
 اگر `AUTO_INSTALL_TOOLS=true` باشد، ربات این repo را داخل `tools/gplay-apk-downloader` clone می‌کند. اگر `ALLTECH_AUTO_AUTH=true` باشد، وقتی `~/.gplay-auth.json` وجود نداشته باشد یک بار `gplay auth` را اجرا می‌کند.
 
-### gplaydl
+### پیشنهاد اصلی: gplaydl 4.x (چهار معماری)
 
-`gplaydl` با `requirements.txt` نصب می‌شود. فایل‌های base و split را دانلود می‌کند و PlayDL آن‌ها را با APKEditor تبدیل می‌کند.
+`gplaydl 4.x` از ARM64، ARMv7، x86_64 و x86 پشتیبانی می‌کند. در حالت `PLAY_ARCH_MODE=all`، ربات هر معماری را جداگانه دانلود و تبدیل می‌کند و APKهای امضاشده را داخل یک ZIP قرار می‌دهد.
 
 ```env
 PLAY_DOWNLOADER_BACKEND=gplaydl
-PLAY_ARCH=arm64
-APKEDITOR_JAR=tools/APKEditor.jar
+PLAY_ARCH_MODE=all
+GPLAYDL_API_KEY=
 ```
 
-اگر نصب خودکار فعال باشد و دستور `gplaydl` پیدا نشود، ربات آن را با pip نصب می‌کند.
+کلید API اختیاری است؛ اگر runtime را یک‌بار با دستور `gplaydl link` جفت کرده باشی، نیازی به آن نیست. در Docker این دستور را اجرا کن: `docker compose -f Docker/docker-compose.yml exec bot gplaydl link`. Volume فعلی `/root` تنظیمات را نگه می‌دارد. راه دیگر، قراردادن `GPLAYDL_API_KEY` در محیط runtime یا فایل `.env` است؛ کلید را commit نکن.
+
+برای جفت‌سازی اولیه از برنامه gplaydl Authenticator و یک حساب Google جداگانه استفاده کن. Google ممکن است حساب‌های استفاده‌شده در کلاینت‌های غیررسمی را محدود کند؛ از حساب اصلی استفاده نکن.
 
 ### apkeep
 
@@ -227,8 +229,8 @@ storage/    فایل‌های دانلود و runtime
 
 ## دانلود چندمعماری
 
-با تنظیم PLAY_ARCH_MODE=all ربات معماری‌های قابل پشتیبانی دانلودر را بررسی می‌کند. با وابستگی فعلی gplaydl 2.x و اتصال alltech-gplay، معماری‌های قابل اتکا ARM64 (arm64-v8a) و ARMv7 (armeabi-v7a) هستند. هر نسخه جداگانه دانلود و تبدیل می‌شود و همراه ARCHITECTURE_REPORT.json داخل ZIP قرار می‌گیرد.
+با `PLAY_ARCH_MODE=all` و `gplaydl 4.x` چهار ABI یعنی ARM64 (arm64-v8a)، ARMv7 (armeabi-v7a)، x86_64 و x86 درخواست می‌شوند. هر معماری جداگانه دانلود و تبدیل می‌شود و همراه `ARCHITECTURE_REPORT.json` داخل ZIP قرار می‌گیرد. خطای هر معماری برای همان برنامه در manifest ثبت می‌شود.
 
-پروفایل x86 و x86_64 در مجموعه دانلودرهای فعلی وجود ندارد. APK یونیورسال واقعی نیز ساخته نمی‌شود؛ ادغام خروجی‌های ARM به معنی پشتیبانی از همه ABIها نیست. وضعیت معماری‌های ناموجود در گزارش ZIP ثبت می‌شود.
+Google Play برای برنامه‌های App Bundle یک APK یونیورسال ارائه نمی‌کند. خروجی ربات چهار APK مجزای معماری در ZIP است، نه یک APK یونیورسال؛ فایل‌های mergeشده نیز دوباره امضا می‌شوند و روی نصب Play-signed قبلی قابل update نیستند.
 
 گزینه «هر دو» همان ZIP را در تلگرام ارسال و در NixFile آپلود می‌کند و لینک آن را برمی‌گرداند.

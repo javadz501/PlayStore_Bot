@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 
 
@@ -37,10 +38,15 @@ async def run_process(
     args: list[str],
     cwd: Path | None = None,
     timeout: int = DEFAULT_COMMAND_TIMEOUT,
+    env: dict[str, str] | None = None,
 ) -> str:
+    process_env = os.environ.copy()
+    if env:
+        process_env.update(env)
     process = await asyncio.create_subprocess_exec(
         *args,
         cwd=cwd,
+        env=process_env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

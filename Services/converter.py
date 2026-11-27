@@ -1,5 +1,7 @@
 import logging
+import os
 import shutil
+import tempfile
 from pathlib import Path
 from string import Formatter
 
@@ -31,35 +33,37 @@ class ApksConverter:
         return await self._merge_input(source_path, source_path.with_suffix(".apk"))
 
     async def _merge_directory(self, source_dir: Path) -> Path:
-        apk_files = sorted(source_dir.rglob("*.apk"))
-        if not apk_files:
-            raise DownloadError("فایل APK داخل پوشه دانلود پیدا نشد.")
-
-        splits = [p for p in apk_files if "merged" not in p.stem.lower()]
-        split_files = [
-            p for p in splits if p.stem.lower().startswith(("config.", "split_", "split."))
+        all_apks = sorted(source_dir.rglob("*.apk"))
+        merged = [p for p in all_apks if "merged" in p.stem.lower()]
+        apk_files = [
+            p for p in all_apks
+            if "merged" not in p.stem.lower() and not p.stem.lower().endswith("-asset")
         ]
-        candidate_bases = [p for p in splits if p not in split_files]
-
-        if split_files and candidate_bases:
-            base = next(
-                (p for p in candidate_bases if p.stem.lower() == "base"),
-                candidate_bases[0],
-            )
-            splits_dir = base.parent
-            output = source_dir / "merged.apk"
-            if output.exists():
-                output.unlink()
-            return await self._merge_input(splits_dir, output)
+        if not apk_files:
+            if merged:
+                return max(merged, key=lambda item: item.stat().st_mtime)
+            raise DownloadError("فایل APK داخل پوشه دانلود پیدا نشد.")
 
         if len(apk_files) == 1:
             return apk_files[0]
 
-        merged = [p for p in apk_files if "merged" in p.stem.lower()]
-        if merged:
-            return max(merged, key=lambda item: item.stat().st_mtime)
+        output = source_dir / "merged.apk"
+        if output.exists():
+            output.unlink()
 
-        return await self._merge_input(source_dir, source_dir / "merged.apk")
+        # gplaydl names ABI splits after the version code; stage only APK
+        # payloads and exclude Play Asset Delivery APKs from the merge input.
+        with tempfile.TemporaryDirectory(prefix="playdl-splits-") as temp_dir:
+            staging_dir = Path(temp_dir)
+            for index, apk_path in enumerate(apk_files):
+                target = staging_dir / apk_path.name
+                if target.exists():
+                    target = staging_dir / f"{index}-{apk_path.name}"
+                try:
+                    os.symlink(apk_path.resolve(), target)
+                except OSError:
+                    shutil.copy2(apk_path, target)
+            return await self._merge_input(staging_dir, output)
 
     async def _merge_input(self, input_path: Path, output_path: Path) -> Path:
         command_template = self._settings.apks_to_apk_cmd

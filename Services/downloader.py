@@ -1,8 +1,10 @@
 import logging
+import re
 import shutil
 import sys
 import zipfile
 from contextlib import suppress
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from string import Formatter
 
@@ -48,7 +50,10 @@ class PlayDownloader:
             if backend == "alltech-gplay":
                 await self._alltech_run_with_auth_retry(package_name, output_dir, arch)
             elif backend == "gplaydl":
-                await run_process(["gplaydl", "download", package_name, "-o", str(output_dir), "-a", arch])
+                await run_process(
+                    ["gplaydl", "download", package_name, "-o", str(output_dir), "-a", arch],
+                    env=self._gplaydl_env(),
+                )
             elif backend == "custom":
                 template = self._settings.play_downloader_cmd
                 if not template:
@@ -92,7 +97,8 @@ class PlayDownloader:
                     str(output_dir),
                     "-a",
                     self._settings.play_arch,
-                ]
+                ],
+                env=self._gplaydl_env(),
             )
             return
 
@@ -104,8 +110,27 @@ class PlayDownloader:
 
     def _resolve_backend(self) -> str:
         backend = self._settings.play_downloader_backend.strip().lower()
+        arch_mode = (self._settings.play_arch_mode or "all").strip().lower()
         if backend != "auto":
+            if arch_mode == "all":
+                if backend != "gplaydl":
+                    raise DownloadError(
+                        "PLAY_ARCH_MODE=all requires PLAY_DOWNLOADER_BACKEND=gplaydl (version 4.x) "
+                        "to provide all four ABI profiles."
+                    )
+                if not self._gplaydl_v4_available():
+                    raise DownloadError(
+                        "PLAY_ARCH_MODE=all requires gplaydl 4.2.1 or newer in the 4.x series."
+                    )
             return backend
+
+        if arch_mode == "all":
+            if self._gplaydl_v4_available():
+                return "gplaydl"
+            raise DownloadError(
+                "PLAY_ARCH_MODE=all requires gplaydl 4.2.1 or newer in the 4.x series. "
+                "Enable AUTO_INSTALL_TOOLS or upgrade it manually."
+            )
 
         if self._settings.alltech_gplay_path.exists():
             return "alltech-gplay"
@@ -186,6 +211,27 @@ class PlayDownloader:
         if last_error is None:
             raise CommandError("alltech-gplay failed without raising")
         raise last_error
+
+    @staticmethod
+    def _gplaydl_v4_available() -> bool:
+        if not shutil.which("gplaydl"):
+            return False
+        try:
+            installed = version("gplaydl")
+        except PackageNotFoundError:
+            return False
+        match = re.match(r"^(\d+)\.(\d+)\.(\d+)", installed)
+        if not match:
+            return False
+        parsed = tuple(int(part) for part in match.groups())
+        return (4, 2, 1) <= parsed < (5, 0, 0)
+
+    def _gplaydl_env(self) -> dict[str, str] | None:
+        api_key = self._settings.gplaydl_api_key
+        if api_key is None:
+            return None
+        value = api_key.get_secret_value().strip()
+        return {"GPLAYDL_API_KEY": value} if value else None
 
     def _apkeep_available(self) -> bool:
         if self._settings.apkeep_path.exists():

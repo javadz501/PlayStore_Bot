@@ -1,14 +1,13 @@
-SUPPORTED_ARCHITECTURES = ("arm64", "armv7")
+SUPPORTED_ARCHITECTURES = ("arm64", "armv7", "x86_64", "x86")
 
 ARCHITECTURE_ABIS = {
     "arm64": "arm64-v8a",
     "armv7": "armeabi-v7a",
+    "x86_64": "x86_64",
+    "x86": "x86",
 }
 
-UNSUPPORTED_ARCHITECTURES = {
-    "x86": "The pinned gplaydl 2.x and alltech-gplay backends do not expose an x86 device profile.",
-    "x86_64": "The pinned gplaydl 2.x and alltech-gplay backends do not expose an x86_64 device profile.",
-}
+UNSUPPORTED_ARCHITECTURES: dict[str, str] = {}
 
 
 def architecture_plan(mode: str, single_arch: str) -> tuple[str, ...]:
