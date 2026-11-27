@@ -164,7 +164,7 @@ async def run_download_pipeline(
             if not successful_apks:
                 details = "; ".join(f"{a}: {e}" for a, e in failed_architectures.items())
                 raise DownloadError(f"هیچ نسخه معماری قابل تولید نبود. {details}")
-            await status_message.edit_text("Building multi-architecture package...")
+            await status_message.edit_text("در حال ساخت بسته چندمعماری...")
             archive_path = settings.download_dir / str(job_id) / f"{app_stem}-multi-arch.zip"
             await asyncio.to_thread(_create_multi_arch_bundle, archive_path, package_name, successful_apks, failed_architectures)
             await db.update_job(job_id, "ready", source_path=str(settings.download_dir / str(job_id)), apk_path=str(archive_path))
