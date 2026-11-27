@@ -279,7 +279,11 @@ class DeliveryCallback(CallbackQueryHandler):
         await db.update_job(job_id, "ready", error="; ".join(errors) or "Partial delivery")
         if nixfile_url:
             await db.set_job_delivery(job_id, "nixfile")
-            await _safe_edit_text(status_message, f"NixFile link is ready. Telegram delivery: {'completed' if telegram_ok else 'failed'}.", reply_markup=link_keyboard(nixfile_url))
+            await _safe_edit_text(
+                status_message,
+                f"NixFile link is ready: {nixfile_url}\nTelegram delivery failed. Retry from the delivery buttons.",
+                reply_markup=delivery_keyboard(job_id),
+            )
         elif telegram_ok:
             await db.set_job_delivery(job_id, "telegram")
             await _safe_edit_text(status_message, "Telegram delivery completed, but the NixFile link could not be created. Retry from the delivery buttons.", reply_markup=delivery_keyboard(job_id))
