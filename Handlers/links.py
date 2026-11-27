@@ -281,7 +281,7 @@ class DeliveryCallback(CallbackQueryHandler):
             await db.set_job_delivery(job_id, "nixfile")
             await _safe_edit_text(
                 status_message,
-                f"NixFile link is ready: {nixfile_url}\nTelegram delivery failed. Retry from the delivery buttons.",
+                f"لینک NixFile آماده است: {nixfile_url}\nارسال تلگرام ناموفق بود. از دکمه‌های زیر برای تلاش مجدد استفاده کن.",
                 reply_markup=delivery_keyboard(job_id),
             )
         elif telegram_ok:
