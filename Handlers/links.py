@@ -236,7 +236,7 @@ class DeliveryCallback(CallbackQueryHandler):
         nixfile_url = None
         errors = []
         try:
-            await _safe_edit_text(status_message, "Sending the multi-architecture package to Telegram...")
+            await _safe_edit_text(status_message, "در حال ارسال فایل دانلودشده به تلگرام...")
             await self._send_document_with_retry(archive_path, package_label, int(getattr(settings, "telegram_upload_retries", 4) or 4))
             telegram_ok = True
         except Exception as exc:
@@ -264,7 +264,7 @@ class DeliveryCallback(CallbackQueryHandler):
                 else:
                     if cached_url:
                         await db.clear_package_nixfile(package_name)
-                    await _safe_edit_text(status_message, "Telegram delivery processed. Uploading the package to NixFile...")
+                    await _safe_edit_text(status_message, "ارسال تلگرام انجام شد. در حال بارگذاری فایل در NixFile...")
                     nixfile_url = await uploader.upload(archive_path)
                     await db.set_package_nixfile(package_name, nixfile_url, kind="multi-arch-zip")
             except Exception as exc:
@@ -274,7 +274,7 @@ class DeliveryCallback(CallbackQueryHandler):
             await db.set_job_delivery(job_id, "both")
             await db.update_job(job_id, "done")
             _maybe_delete_after_upload(settings, archive_path)
-            await _safe_edit_text(status_message, "Both delivery methods completed.", reply_markup=link_keyboard(nixfile_url))
+            await _safe_edit_text(status_message, "فایل با موفقیت در تلگرام ارسال شد و لینک NixFile نیز آماده است.", reply_markup=link_keyboard(nixfile_url))
             return
         await db.update_job(job_id, "ready", error="; ".join(errors) or "Partial delivery")
         if nixfile_url:
@@ -286,7 +286,7 @@ class DeliveryCallback(CallbackQueryHandler):
             )
         elif telegram_ok:
             await db.set_job_delivery(job_id, "telegram")
-            await _safe_edit_text(status_message, "Telegram delivery completed, but the NixFile link could not be created. Retry from the delivery buttons.", reply_markup=delivery_keyboard(job_id))
+            await _safe_edit_text(status_message, "فایل در تلگرام ارسال شد، اما ساخت لینک NixFile ناموفق بود. از دکمه‌های زیر دوباره تلاش کن.", reply_markup=delivery_keyboard(job_id))
         else:
             await _safe_edit_text(status_message, FAILED_TEXT.format(error=safe("; ".join(errors))), reply_markup=delivery_keyboard(job_id))
 
